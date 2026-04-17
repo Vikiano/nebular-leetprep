@@ -1,0 +1,84 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { markdownToHtml } from "@/lib/md";
+
+type Params = Promise<{ slug: string }>;
+
+export default async function CompanyPathPage({ params }: { params: Params }) {
+  const { slug } = await params;
+  const supabase = await createSupabaseServerClient();
+  const { data: path, error } = await supabase
+    .from("company_paths")
+    .select("*")
+    .eq("slug", slug)
+    .single();
+  if (error || !path) notFound();
+
+  const descHtml = markdownToHtml(path.description_md ?? "");
+
+  const [{ data: problems }, { data: behavioral }, { data: sd }] = await Promise.all([
+    supabase.from("problems").select("slug, title, difficulty").in("slug", path.problem_slugs ?? []),
+    supabase.from("behavioral_questions").select("slug, prompt").in("slug", path.behavioral_slugs ?? []),
+    supabase.from("system_design_topics").select("slug, title").in("slug", path.system_design_slugs ?? []),
+  ]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="mb-4 flex items-center gap-3 text-sm text-slate-400">
+        <Link href="/companies" className="hover:text-cyan-300">Company Paths</Link>
+      </div>
+      <div className="mb-8 flex items-center gap-3">
+        <h1 className="text-4xl font-bold">{path.company}</h1>
+        <span className="text-slate-400 text-xl">{path.role}</span>
+      </div>
+      <article className="prose-night mb-12" dangerouslySetInnerHTML={{ __html: descHtml }} />
+      <Section title="Coding problems" count={problems?.length ?? 0}>
+        <ul className="space-y-2">
+          {(problems ?? []).map((p) => (
+            <li key={p.slug}>
+              <Link href={`/problems/${p.slug}`} className="flex justify-between p-3 rounded-lg border border-slate-800 hover:border-cyan-500/40">
+                <span>{p.title}</span>
+                <span className="text-sm text-slate-500">{p.difficulty}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Section>
+      <Section title="Behavioral" count={behavioral?.length ?? 0}>
+        <ul className="space-y-2">
+          {(behavioral ?? []).map((b) => (
+            <li key={b.slug}>
+              <Link href={`/behavioral/${b.slug}`} className="block p-3 rounded-lg border border-slate-800 hover:border-cyan-500/40">
+                {b.prompt}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Section>
+      <Section title="System design" count={sd?.length ?? 0}>
+        <ul className="space-y-2">
+          {(sd ?? []).map((s) => (
+            <li key={s.slug}>
+              <Link href={`/system-design/${s.slug}`} className="block p-3 rounded-lg border border-slate-800 hover:border-cyan-500/40">
+                {s.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  );
+}
+
+function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
+    <section className="mb-12">
+      <div className="flex items-baseline gap-3 mb-4">
+        <h2 className="text-2xl font-semibold">{title}</h2>
+        <span className="text-sm text-slate-500">({count})</span>
+      </div>
+      {children}
+    </section>
+  );
+}
