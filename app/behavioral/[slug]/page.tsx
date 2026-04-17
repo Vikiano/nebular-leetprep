@@ -1,23 +1,65 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { createSupabaseServerClient, createSupabaseBuildClient } from "@/lib/supabase/server";
 import { markdownToHtml } from "@/lib/md";
 
 type Params = Promise<{ slug: string }>;
 
+// Allow dynamic params so aliases (not in generateStaticParams output) still render via server render + redirect.
+// notFound() inside the page will return a proper 404 status for truly-unknown slugs.
+export const dynamicParams = true;
+
+// Statically generate all canonical slugs at build time. Aliases are handled dynamically at request time.
+// Uses a cookie-free client since generateStaticParams runs outside any request scope.
+export async function generateStaticParams() {
+  const supabase = createSupabaseBuildClient();
+  const { data } = await supabase.from("behavioral_questions").select("slug");
+  return (data ?? []).map((row) => ({ slug: row.slug }));
+}
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createSupabaseServerClient();
+  const { data: q } = await supabase
+    .from("behavioral_questions")
+    .select("slug, prompt, company, principle")
+    .or(`slug.eq.${slug},slug_aliases.cs.{${slug}}`)
+    .maybeSingle();
+  if (!q) {
+    return {
+      title: `Behavioral question not found -- LeetPrep Studio`,
+      description: `The behavioral slug "${slug}" is not in our seeded set. Browse all 20 behavioral drills.`,
+      robots: { index: false },
+    };
+  }
+  const scope = q.company ? `${q.company} ${q.principle ?? "behavioral"}` : "behavioral";
+  return {
+    title: `${q.prompt.slice(0, 70)} -- LeetPrep Studio`,
+    description: `STAR framework answer guide for a ${scope} interview question.`,
+  };
+}
+
 export default async function BehavioralDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
   const supabase = await createSupabaseServerClient();
-  const { data: q, error } = await supabase
+
+  const { data: q } = await supabase
     .from("behavioral_questions")
     .select("*")
-    .eq("slug", slug)
-    .single();
-  if (error || !q) notFound();
+    .or(`slug.eq.${slug},slug_aliases.cs.{${slug}}`)
+    .maybeSingle();
+
+  if (!q) notFound();
+
+  // Alias hit -> permanent redirect to canonical slug for SEO.
+  if (q.slug !== slug) {
+    redirect(`/behavioral/${q.slug}`);
+  }
 
   const structureHtml = q.ideal_answer_structure_md
     ? markdownToHtml(q.ideal_answer_structure_md)
-    : "<p>No structured guide provided. Use the STAR framework: Situation, Task, Action, Result.</p>";
+    : "<p>No structured guide provided yet. Use the STAR framework: Situation, Task, Action, Result.</p>";
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">

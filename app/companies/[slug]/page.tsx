@@ -1,19 +1,61 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { createSupabaseServerClient, createSupabaseBuildClient } from "@/lib/supabase/server";
 import { markdownToHtml } from "@/lib/md";
 
 type Params = Promise<{ slug: string }>;
 
+// Allow dynamic params so aliases (not in generateStaticParams output) still render via server render + redirect.
+// notFound() inside the page will return a proper 404 status for truly-unknown slugs.
+export const dynamicParams = true;
+
+// Statically generate all canonical slugs at build time. Aliases are handled dynamically at request time.
+// Uses a cookie-free client since generateStaticParams runs outside any request scope.
+export async function generateStaticParams() {
+  const supabase = createSupabaseBuildClient();
+  const { data } = await supabase.from("company_paths").select("slug");
+  return (data ?? []).map((row) => ({ slug: row.slug }));
+}
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createSupabaseServerClient();
+  const { data: path } = await supabase
+    .from("company_paths")
+    .select("slug, company, role")
+    .or(`slug.eq.${slug},slug_aliases.cs.{${slug}}`)
+    .maybeSingle();
+  if (!path) {
+    return {
+      title: `Company path not found -- LeetPrep Studio`,
+      description: `The company slug "${slug}" is not in our seeded set. Browse all 10 company paths.`,
+      robots: { index: false },
+    };
+  }
+  return {
+    title: `${path.company} ${path.role} interview prep -- LeetPrep Studio`,
+    description: `Coding problems, behavioral drills, and system design topics tuned for ${path.company} ${path.role} interviews.`,
+  };
+}
+
 export default async function CompanyPathPage({ params }: { params: Params }) {
   const { slug } = await params;
   const supabase = await createSupabaseServerClient();
-  const { data: path, error } = await supabase
+
+  // Look up by canonical slug OR slug_aliases array membership.
+  const { data: path } = await supabase
     .from("company_paths")
     .select("*")
-    .eq("slug", slug)
-    .single();
-  if (error || !path) notFound();
+    .or(`slug.eq.${slug},slug_aliases.cs.{${slug}}`)
+    .maybeSingle();
+
+  if (!path) notFound();
+
+  // If user hit an alias, permanent redirect to canonical slug for SEO.
+  if (path.slug !== slug) {
+    redirect(`/companies/${path.slug}`);
+  }
 
   const descHtml = markdownToHtml(path.description_md ?? "");
 

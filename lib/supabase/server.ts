@@ -47,3 +47,22 @@ export function createSupabaseServiceClient() {
     }
   );
 }
+
+// Cookie-free anon client safe for generateStaticParams and other build-time contexts
+// where no request scope exists. Uses anon key only (RLS still enforced).
+export function createSupabaseBuildClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll() {
+          // no-op: build-time has no response to set cookies on
+        },
+      },
+    }
+  );
+}
