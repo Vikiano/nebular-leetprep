@@ -6,6 +6,43 @@ export const metadata = {
   description: "The curated DSA roadmap. Work your way from arrays to dynamic programming.",
 };
 
+// Explicit mapping from roadmap slug to the topic tag used on the problems
+// table. The previous version used slug.split('-')[0] which mismapped many
+// entries (e.g. 'dynamic-programming' -> 'dynamic' which has no problems).
+const SLUG_TO_TOPIC: Record<string, string> = {
+  arrays: "array",
+  "arrays-and-hashing": "array",
+  strings: "string",
+  "strings-and-sliding-window": "sliding-window",
+  "two-pointers": "array",
+  "sliding-window": "sliding-window",
+  stack: "array",
+  "binary-search": "array",
+  "linked-list": "array",
+  trees: "tree",
+  "binary-tree": "tree",
+  "binary-search-tree": "tree",
+  tries: "tree",
+  "heap-priority-queue": "heap",
+  heap: "heap",
+  "graphs-basic": "graph",
+  graphs: "graph",
+  "graphs-advanced": "graph",
+  backtracking: "backtracking",
+  "dynamic-programming": "dp",
+  "dynamic-programming-1d": "dp",
+  "dynamic-programming-2d": "dp",
+  dp: "dp",
+  greedy: "array",
+  "intervals": "array",
+  "math-and-geometry": "array",
+  "bit-manipulation": "array",
+};
+
+function topicForSlug(slug: string): string {
+  return SLUG_TO_TOPIC[slug] ?? slug.split("-")[0];
+}
+
 export default async function RoadmapPage() {
   const supabase = await createSupabaseServerClient();
   const { data: nodes } = await supabase
@@ -35,13 +72,20 @@ export default async function RoadmapPage() {
               <div className="text-sm text-slate-500">{n.slug}</div>
             </div>
             <Link
-              href={`/problems?topic=${n.slug.split("-")[0]}`}
+              href={`/problems?topic=${topicForSlug(n.slug)}`}
               className="text-sm text-cyan-300 hover:text-cyan-200"
             >
               Practice
             </Link>
           </div>
         ))}
+        {!nodes || nodes.length === 0 ? (
+          <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center text-slate-400">
+            Roadmap nodes are loading. Browse the{" "}
+            <Link href="/problems" className="text-cyan-300 hover:text-cyan-200">problem library</Link>{" "}
+            in the meantime.
+          </div>
+        ) : null}
       </div>
     </div>
   );

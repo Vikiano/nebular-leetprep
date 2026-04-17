@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Nav from "@/components/nav";
 import Footer from "@/components/footer";
@@ -6,7 +6,7 @@ import Footer from "@/components/footer";
 export const metadata: Metadata = {
   metadataBase: new URL("https://leetprep.nebular.art"),
   title: {
-    default: "LeetPrep Studio - The Interview Prep Platform That Teaches",
+    default: "LeetPrep Studio -- The Interview Prep Platform That Teaches",
     template: "%s | LeetPrep Studio",
   },
   description:
@@ -17,13 +17,6 @@ export const metadata: Metadata = {
       "AI-powered interview prep for Meta, Amazon, Google, Apple, Netflix and more.",
     url: "https://leetprep.nebular.art",
     siteName: "LeetPrep Studio",
-    images: [
-      {
-        url: "/og.png",
-        width: 1200,
-        height: 630,
-      },
-    ],
     type: "website",
   },
   twitter: {
@@ -35,6 +28,12 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0f1a",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

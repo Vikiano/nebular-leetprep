@@ -1,14 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+type Tier = "free" | "pro" | "elite";
 
 export default function WaitlistForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
-  const [tier, setTier] = useState<"free" | "pro" | "elite">("pro");
+  const [tier, setTier] = useState<Tier>("pro");
   const [companies, setCompanies] = useState<string[]>([]);
   const [role, setRole] = useState("");
   const [years, setYears] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    const urlTier = searchParams.get("tier");
+    if (urlTier === "free" || urlTier === "pro" || urlTier === "elite") {
+      setTier(urlTier);
+    }
+  }, [searchParams]);
 
   const COMPANIES = ["meta", "google", "amazon", "apple", "netflix", "microsoft", "stripe", "openai"];
 
@@ -23,26 +34,34 @@ export default function WaitlistForm() {
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           email,
           intended_tier: tier,
           target_companies: companies,
-          target_role: role,
+          target_role: role || null,
           experience_years: years ? parseInt(years, 10) : null,
           referrer: "waitlist-page",
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const raw = await res.text();
+      let parsed: { ok?: boolean; duplicate?: boolean; error?: string } | null = null;
+      if (raw && raw.length > 0) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          parsed = null;
+        }
+      }
       if (res.ok) {
         setStatus("done");
       } else {
         setStatus("error");
-        setErrorMsg(data.error ?? "Something went wrong. Try again.");
+        setErrorMsg(parsed?.error ?? "Something went wrong. Please try again.");
       }
     } catch {
       setStatus("error");
-      setErrorMsg("Network error. Try again.");
+      setErrorMsg("Network error. Please check your connection and try again.");
     }
   }
 
@@ -61,8 +80,9 @@ export default function WaitlistForm() {
   return (
     <form onSubmit={submit} className="space-y-6">
       <div>
-        <label className="block text-sm font-medium mb-2">Email</label>
+        <label className="block text-sm font-medium mb-2" htmlFor="waitlist-email">Email</label>
         <input
+          id="waitlist-email"
           type="email"
           required
           value={email}
@@ -114,8 +134,9 @@ export default function WaitlistForm() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Target role</label>
+          <label className="block text-sm font-medium mb-2" htmlFor="waitlist-role">Target role</label>
           <input
+            id="waitlist-role"
             type="text"
             value={role}
             onChange={(e) => setRole(e.target.value)}
@@ -124,8 +145,9 @@ export default function WaitlistForm() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-2">Years experience</label>
+          <label className="block text-sm font-medium mb-2" htmlFor="waitlist-years">Years experience</label>
           <input
+            id="waitlist-years"
             type="number"
             value={years}
             onChange={(e) => setYears(e.target.value)}

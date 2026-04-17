@@ -1,9 +1,25 @@
+import { Suspense } from "react";
 import WaitlistForm from "./form";
 
 export const metadata = {
   title: "Join the Waitlist",
   description: "Be the first to access LeetPrep Studio Pro and Elite tiers.",
 };
+
+function FormFallback() {
+  return (
+    <div className="space-y-4">
+      <div className="h-10 w-full bg-slate-800 rounded animate-pulse" />
+      <div className="grid grid-cols-3 gap-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-12 bg-slate-800 rounded animate-pulse" />
+        ))}
+      </div>
+      <div className="h-20 w-full bg-slate-800 rounded animate-pulse" />
+      <div className="h-10 w-full bg-slate-800 rounded animate-pulse" />
+    </div>
+  );
+}
 
 export default function WaitlistPage() {
   return (
@@ -15,7 +31,9 @@ export default function WaitlistPage() {
           Tell us which tier you want and what you are preparing for, and we will email you the moment it is live.
         </p>
       </div>
-      <WaitlistForm />
+      <Suspense fallback={<FormFallback />}>
+        <WaitlistForm />
+      </Suspense>
       <div className="mt-12 rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-400">
         <p className="mb-2"><strong className="text-slate-200">What you get today.</strong></p>
         <ul className="list-disc pl-5 space-y-1">

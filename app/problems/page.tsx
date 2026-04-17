@@ -12,6 +12,23 @@ type SearchParams = Promise<{
   company?: string;
 }>;
 
+function buildHref(
+  currentParams: { difficulty?: string; topic?: string; company?: string },
+  override: { keyName: "difficulty" | "topic" | "company"; value: string | null }
+) {
+  const merged: Record<string, string> = {};
+  if (currentParams.difficulty) merged.difficulty = currentParams.difficulty;
+  if (currentParams.topic) merged.topic = currentParams.topic;
+  if (currentParams.company) merged.company = currentParams.company;
+  if (override.value === null) {
+    delete merged[override.keyName];
+  } else {
+    merged[override.keyName] = override.value;
+  }
+  const qs = new URLSearchParams(merged).toString();
+  return qs ? `?${qs}` : "?";
+}
+
 export default async function ProblemsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -31,26 +48,38 @@ export default async function ProblemsPage({ searchParams }: { searchParams: Sea
   const companies = ["meta", "google", "amazon", "apple", "netflix", "microsoft"];
   const topics = ["array", "string", "tree", "graph", "dp", "heap", "backtracking", "sliding-window"];
 
+  const activeFilterCount =
+    Number(Boolean(params.difficulty)) + Number(Boolean(params.topic)) + Number(Boolean(params.company));
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-16">
       <div className="mb-12">
         <h1 className="text-4xl font-bold mb-3">Problems</h1>
         <p className="text-slate-400">
           {problems?.length ?? 0} problems across {topics.length} topics, tagged by company.
+          {activeFilterCount > 0 ? (
+            <>
+              {" "}
+              <Link href={buildHref({}, { keyName: "difficulty", value: null })} className="text-cyan-300 hover:text-cyan-200">
+                Clear all filters
+              </Link>
+              .
+            </>
+          ) : null}
         </p>
       </div>
 
       <div className="grid md:grid-cols-4 gap-8">
         <aside className="space-y-6 md:col-span-1">
-          <FilterGroup label="Difficulty" current={params.difficulty} options={difficulties} keyName="difficulty" />
-          <FilterGroup label="Company" current={params.company} options={companies} keyName="company" />
-          <FilterGroup label="Topic" current={params.topic} options={topics} keyName="topic" />
+          <FilterGroup label="Difficulty" current={params.difficulty} options={difficulties} keyName="difficulty" params={params} />
+          <FilterGroup label="Company" current={params.company} options={companies} keyName="company" params={params} />
+          <FilterGroup label="Topic" current={params.topic} options={topics} keyName="topic" params={params} />
         </aside>
 
         <section className="md:col-span-3">
           {error ? (
             <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
-              Error loading problems. Please refresh.
+              Error loading problems. Please refresh or clear filters.
             </div>
           ) : (
             <div className="divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-900/30">
@@ -74,7 +103,13 @@ export default async function ProblemsPage({ searchParams }: { searchParams: Sea
                 </Link>
               ))}
               {(problems ?? []).length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No problems match those filters.</div>
+                <div className="p-8 text-center text-slate-500">
+                  No problems match those filters.{" "}
+                  <Link href={buildHref({}, { keyName: "difficulty", value: null })} className="text-cyan-300 hover:text-cyan-200">
+                    Clear filters
+                  </Link>
+                  .
+                </div>
               ) : null}
             </div>
           )}
@@ -89,18 +124,20 @@ function FilterGroup({
   current,
   options,
   keyName,
+  params,
 }: {
   label: string;
   current?: string;
   options: string[];
-  keyName: string;
+  keyName: "difficulty" | "topic" | "company";
+  params: { difficulty?: string; topic?: string; company?: string };
 }) {
   return (
     <div>
       <div className="text-xs uppercase tracking-wider text-slate-500 mb-2">{label}</div>
       <div className="flex flex-wrap gap-2">
         <Link
-          href={`?`}
+          href={buildHref(params, { keyName, value: null })}
           className={`text-xs rounded-full border px-3 py-1 ${
             !current ? "border-cyan-500 bg-cyan-500/10 text-cyan-200" : "border-slate-700 text-slate-400"
           }`}
@@ -110,7 +147,7 @@ function FilterGroup({
         {options.map((o) => (
           <Link
             key={o}
-            href={`?${keyName}=${o}`}
+            href={buildHref(params, { keyName, value: o })}
             className={`text-xs rounded-full border px-3 py-1 ${
               current === o ? "border-cyan-500 bg-cyan-500/10 text-cyan-200" : "border-slate-700 text-slate-400 hover:border-slate-500"
             }`}
