@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 const WaitlistSchema = z.object({
   email: z.string().email(),
@@ -24,21 +24,29 @@ export async function POST(req: Request) {
   }
   const { email, intended_tier, target_companies, target_role, experience_years, referrer } = parsed.data;
 
+  // Use anon key for the insert (RLS allows anon to insert into waitlist_entries)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    return NextResponse.json({ error: "Service not configured" }, { status: 503 });
+  }
+
   try {
-    const supabase = createSupabaseServiceClient();
-    const { error } = await supabase.from("waitlist_entries").upsert(
-      {
-        email,
-        intended_tier,
-        target_companies: target_companies ?? [],
-        target_role: target_role ?? null,
-        experience_years: experience_years ?? null,
-        referrer: referrer ?? null,
-      },
-      { onConflict: "email" }
-    );
+    const supabase = createClient(supabaseUrl, anonKey);
+    const { error } = await supabase.from("waitlist_entries").insert({
+      email,
+      intended_tier,
+      target_companies: target_companies ?? [],
+      target_role: target_role ?? null,
+      experience_years: experience_years ?? null,
+      referrer: referrer ?? null,
+    });
     if (error) {
-      return NextResponse.json({ error: "Database error" }, { status: 500 });
+      // Unique violation on email means already subscribed - treat as success
+      if (error.code === "23505") {
+        return NextResponse.json({ ok: true, duplicate: true });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } catch (err) {
     return NextResponse.json(
